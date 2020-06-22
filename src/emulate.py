@@ -13,6 +13,9 @@ from sklearn.gaussian_process.kernels import Matern
 
 class GPRemul:
 	def __init__(self, simulator, prior, bounds, gpr=None, verbose=True, N=100, sampling='LHS', param_file=None, output_file=None):
+		'''
+		sampling: 'LHS', 'LHS_nsphere', 'MCS', 'MCS_nsphere'
+		'''
 		#self.N_init  = N_init
 		#self.N_max  = N_max
 		self.N = N
@@ -22,7 +25,12 @@ class GPRemul:
 		self.param_names = [kk for kk in prior]
 		self.param_bound = bounds
 		self.bounds = np.array([bounds[kk] for kk in self.param_names])
-		self.sampling = sampling
+
+		if sampling.lower()=='lhs': self.sampling = smp.LH_sampling
+		elif sampling.lower()=='lhs_nsphere': self.sampling = smp.LHS_nsphere
+		elif sampling.lower()=='mcs': self.sampling = smp.MC_sampling
+		elif sampling.lower()=='mcs_nsphere': self.sampling = smp.MCS_nsphere
+		else: self.sampling = sampling
 
 		self.setup_gpr(gpr=gpr)
 		self.param_file  = param_file
@@ -39,7 +47,7 @@ class GPRemul:
 		n_params = self.bounds.shape[0]
 		#samples  = self.N
 		mins, maxs = self.bounds.min(axis=1), self.bounds.max(axis=1)
-		params = smp.LH_sampling(n_params=n_params, samples=samples, mins=mins, maxs=maxs, outfile=None)
+		params = self.sampling(n_params=n_params, samples=samples, mins=mins, maxs=maxs, outfile=None)
 		return params
 
 	def get_params(self, param_file=None, save_file=None):

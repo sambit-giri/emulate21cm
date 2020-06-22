@@ -1,5 +1,6 @@
 import numpy as np
 from pyDOE import lhs
+import helper_functions as hf
 
 def LH_sampling(n_params=2, samples=10, mins=0, maxs=1, outfile=None):
 	"""
@@ -22,6 +23,84 @@ def LH_sampling(n_params=2, samples=10, mins=0, maxs=1, outfile=None):
 	for i,[mn,mx] in enumerate(zip(mins,maxs)): lhd[:,i] = mn + (mx-mn)*lhd[:,i]
 	if outfile is not None:	np.savetxt(outfile.split('.txt')[0]+'.txt', lhd)
 	return lhd
+
+def MC_sampling(n_params=2, samples=10, mins=0, maxs=1, outfile=None):
+	"""
+	Parameters:
+	-----------
+	n_params (int): Give the number of parameters.
+	samples (int) : Total number of points required in the parameter space.
+	mins (float or list): Minimum value for the parametrs. If you give a float, then it assumes same minimum value for all the parameters.
+	maxs (float or list): Maximum value for the parameters. If you give a float, then it assumes same maximum value for all the parameters.
+	outfile (str): Name of the text file where the parameter values will be saved. If None, the values will not be saved anywhere.
+	
+	Return:
+	-------
+	An array containing the parameter values.
+	"""
+	mcd = np.random.uniform(size=(samples,n_params))
+	#print(mcd.shape)
+	for i,[mn,mx] in enumerate(zip(mins,maxs)): mcd[:,i] = mn + (mx-mn)*mcd[:,i]
+	if outfile is not None:	np.savetxt(outfile.split('.txt')[0]+'.txt', mcd)
+	return mcd
+
+def MCS_nsphere(n_params=2, samples=10, mins=0, maxs=1, outfile=None):
+	"""
+	Parameters:
+	-----------
+	n_params (int): Give the number of parameters.
+	samples (int) : Total number of points required in the parameter space.
+	mins (float or list): Minimum value for the parametrs. If you give a float, then it assumes same minimum value for all the parameters.
+	maxs (float or list): Maximum value for the parameters. If you give a float, then it assumes same maximum value for all the parameters.
+	outfile (str): Name of the text file where the parameter values will be saved. If None, the values will not be saved anywhere.
+	
+	Return:
+	-------
+	An array containing the parameter values.
+	"""
+	mcd = np.random.uniform(size=(samples,n_params))
+	mcd_r = ((mcd-0.5)**2).sum(axis=1)
+	mcd = mcd[mcd_r<0.25]
+	while mcd.shape[0]<samples:
+		mcdi = np.random.uniform(size=(1,n_params))
+		mcd_ri = ((mcdi-0.5)**2).sum(axis=1)
+		if mcd_ri<0.25: mcd = np.vstack((mcd, mcdi))
+
+	#print(mcd.shape)
+	for i,[mn,mx] in enumerate(zip(mins,maxs)): mcd[:,i] = mn + (mx-mn)*mcd[:,i]
+	if outfile is not None:	np.savetxt(outfile.split('.txt')[0]+'.txt', mcd)
+	return mcd
+
+def LHS_nsphere(n_params=2, samples=10, mins=0, maxs=1, outfile=None):
+	"""
+	Parameters:
+	-----------
+	n_params (int): Give the number of parameters.
+	samples (int) : Total number of points required in the parameter space.
+	mins (float or list): Minimum value for the parametrs. If you give a float, then it assumes same minimum value for all the parameters.
+	maxs (float or list): Maximum value for the parameters. If you give a float, then it assumes same maximum value for all the parameters.
+	outfile (str): Name of the text file where the parameter values will be saved. If None, the values will not be saved anywhere.
+	
+	Return:
+	-------
+	An array containing the parameter values.
+	"""
+	mins1, maxs1 = [0], [0.5]
+	for i in range(len(mins)-2):
+		mins1.append(0)
+		maxs1.append(np.pi)
+	mins1.append(0)
+	maxs1.append(2*np.pi)
+
+	lhd1 = LH_sampling(n_params=n_params, samples=samples, mins=mins1, maxs=maxs1, outfile=None)
+
+	lhd = []
+	for theta in lhd1: lhd.append(hf.spherical_to_cartesian(theta))
+	lhd = np.array(lhd)
+	for i,[mn,mx] in enumerate(zip(mins,maxs)): lhd[:,i] = mn + (mx-mn)*lhd[:,i]
+	if outfile is not None:	np.savetxt(outfile.split('.txt')[0]+'.txt', lhd)
+	return lhd
+	
 	
 if __name__ == '__main__':
 	# Here we run a simple example with two parameters.
