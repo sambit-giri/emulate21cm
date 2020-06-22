@@ -38,7 +38,7 @@ class GPRemul:
 	def create_params(self, samples):
 		n_params = self.bounds.shape[0]
 		#samples  = self.N
-		mins, maxs = bounds.min(axis=1), bounds.max(axis=1)
+		mins, maxs = self.bounds.min(axis=1), self.bounds.max(axis=1)
 		params = LH_sampling(n_params=n_params, samples=samples, mins=mins, maxs=maxs, outfile=None)
 		return params
 
