@@ -10,9 +10,10 @@ from . import sampling_space as smp
 #from sklearn.linear_model import LogisticRegressionCV
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern
+import pickle
 
 class GPRemul:
-	def __init__(self, simulator, prior, bounds, gpr=None, verbose=True, N=100, sampling='LHS', param_file=None, output_file=None):
+	def __init__(self, simulator, prior, bounds, gpr=None, verbose=True, N=100, sampling='LHS', param_file=None, output_file=None, full_save_file=None):
 		'''
 		sampling: 'LHS', 'LHS_nsphere', 'MCS', 'MCS_nsphere'
 		'''
@@ -35,6 +36,10 @@ class GPRemul:
 		self.setup_gpr(gpr=gpr)
 		self.param_file  = param_file
 		self.output_file = output_file
+		self.full_save_file = full_save_file
+
+		self.train_out = None
+		self.params = None
 
 	def setup_gpr(self, gpr=None, kernel=None, alpha=1e-10, optimizer='fmin_l_bfgs_b', n_restarts_optimizer=5):
 		if gpr is not None:
@@ -60,8 +65,7 @@ class GPRemul:
 			else:
 				print('Please provide the params as a text file or numpy array.')
 		else:
-			params = self.create_params(self.N)
-			self.params = params
+			if self.params is None: self.params = params
 		if save_file is not None:
 			np.savetxt(save_file.split('.txt')[0]+'.txt', self.params)
 
@@ -75,7 +79,7 @@ class GPRemul:
 			else:
 				print('Please provide the training set outputs as a text file or numpy array.')
 		else:
-			self.train_out = np.array([self.simulator(i) for i in self.params])
+			if self.train_out is None: self.train_out = np.array([self.simulator(i) for i in self.params])
 		if save_file is not None:
 			np.savetxt(save_file.split('.txt')[0]+'.txt', self.train_out)
 
@@ -104,6 +108,14 @@ class GPRemul:
 		if save_file is not None:
 			np.savetxt(test_file.split('.txt')[0]+'.txt', self.test_out)
 			np.savetxt(test_param_file.split('.txt')[0]+'.txt', self.test_params)
+
+	def save_simulations(self, full_save_file=None):
+		if self.full_save_file is None: self.full_save_file = full_save_file
+		data = {'params': self.params, 'outputs': self.outputs}
+		pickle.dump(data, open(self.full_save_file.split('.pkl')[0]+'.pkl', 'wb'))
+
+	def save_model(self, model_file):
+		pickle.dump(self.gpr, open(model_file.split('.pkl')[0]+'.pkl', 'wb'))
 
 	def run(self):
 		## Setup the training set.
