@@ -111,7 +111,7 @@ class GPRemul:
 
 	def save_simulations(self, full_save_file=None):
 		if self.full_save_file is None: self.full_save_file = full_save_file
-		data = {'params': self.params, 'outputs': self.outputs}
+		data = {'params': self.params, 'outputs': self.train_out}
 		pickle.dump(data, open(self.full_save_file.split('.pkl')[0]+'.pkl', 'wb'))
 
 	def save_model(self, model_file):
