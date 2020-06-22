@@ -15,6 +15,6 @@ setup(name='emulate21cm',
       package_dir = {'emulate21cm' : 'src'},
       packages=['emulate21cm'],
       package_data={'share':['*'],},
-      install_requires=['numpy','scipy','scikit-learn','scikit-image'],
+      install_requires=['numpy','scipy','scikit-learn','scikit-image', 'pyDOE'],
       #include_package_data=True,
 )
