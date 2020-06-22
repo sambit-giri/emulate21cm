@@ -122,7 +122,7 @@ class GPRemul:
 		self.get_params()
 		self.get_training_set()
 		## Training with GPR
-		self.gpr(self.params, self.train_out)
+		self.gpr.fit(self.params, self.train_out)
 		scr = gpr.score(params, outdata)
 		print('Score: {0:.3f}'.format(scr))
 		## Testing
