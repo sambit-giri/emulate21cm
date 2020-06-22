@@ -14,6 +14,7 @@ from . import sample_models
 from . import distances
 from . import bayesian_optimisation
 from . import corner
+from . import sampling_space
 from .emulate import *
 
 #Suppress warnings from zero-divisions and nans
