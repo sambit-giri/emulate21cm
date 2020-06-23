@@ -247,7 +247,7 @@ class GPRemul_BO:
 		start_iter = len(self.params)
 		for n_iter in range(start_iter,self.N):
 			self.gpr.fit(self.params, self.train_out)
-			X_next = bopt.propose_location(bopt.negativeGP_LCB, self.params, self.train_out, self.gpr, self.bounds, n_restarts=10, xi=self.exploitation_exploration).T
+			X_next = bopt.propose_location(bopt.negativeGP_LCB_definedmu, self.params, self.train_out, self.gpr, self.bounds, n_restarts=10, xi=self.exploitation_exploration).T
 
 		## Training with GPR
 		self.gpr.fit(self.params, self.train_out)

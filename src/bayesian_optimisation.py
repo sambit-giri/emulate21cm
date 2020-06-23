@@ -74,7 +74,7 @@ def propose_location_highDimY(acquisition, X_sample, Y_sample, gpr, bounds, n_re
         min_xs[i,:] = min_x
     return min_x.reshape(-1, 1)
 
-def propose_location(acquisition, X_sample, Y_sample, gpr, bounds, n_restarts=25, xi=1, inside_nsphere=True):
+def propose_location(acquisition, X_sample, Y_sample, gpr, bounds, n_restarts=25, xi=1, inside_nsphere=True, batch=1):
     '''
     Proposes the next sampling point by optimizing the acquisition function.
     It maximises the acquisition function.
@@ -91,6 +91,10 @@ def propose_location(acquisition, X_sample, Y_sample, gpr, bounds, n_restarts=25
     Returns:
         Location of the acquisition function maximum.
     '''
+    if n_restarts<5*batch:
+        print('(n_restarts) parameter is changed to 5x(batch)')
+        n_restarts = 5*batch
+
     dim = X_sample.shape[1]
     min_val = 2*Y_sample.max()#1
     min_x = None
@@ -121,10 +125,17 @@ def propose_location(acquisition, X_sample, Y_sample, gpr, bounds, n_restarts=25
             min_xs.append(res.x)       
         # if res.fun < min_val:
         #     min_val = res.fun[0]
-        #     min_x = res.x           
-    min_val = np.array(min_vals).min()
-    min_x   = np.array(min_xs)[np.array(min_vals).argmin()]
-    return min_x.reshape(-1, 1)
+        #     min_x = res.x   
+    args = _argmin(np.array(min_vals), count=batch)        
+    min_val = np.array(min_vals)[args]
+    min_x   = np.array(min_xs)[args]
+    min_x   = min_x.T if batch>1 else min_x.reshape(-1, 1)
+    return min_x
+
+def _argmin(x, count=1, axis=None):
+    if count==1: return np.argmin(x, axis=axis)
+    args = np.argsort(x, axis=axis)
+    return args[:count]
 
 
 def check_inside_nsphere(X, bound_min, bound_max):
