@@ -248,9 +248,13 @@ class GPRemul_BO:
 		for n_iter in range(start_iter,self.N):
 			self.gpr.fit(self.params, self.train_out)
 			X_next = bopt.propose_location(bopt.negativeGP_LCB_definedmu, self.params, self.train_out, self.gpr, self.bounds, n_restarts=10, xi=self.exploitation_exploration).T
+			self.params = np.vstack((self.params,X_next))
 
 		## Training with GPR
 		self.gpr.fit(self.params, self.train_out)
+		y_pred, y_std = self.gpr.predict(self.params, return_std=True)
+		self.y_pred = y_pred
+		self.y_std  = y_std
 		scr = self.gpr.score(self.params, self.train_out)
 		print('Score: {0:.3f}'.format(scr))
 		## Testing
