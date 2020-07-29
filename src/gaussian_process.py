@@ -86,7 +86,7 @@ class SparseGPR_GPy:
         self.Z = np.random.rand(self.n_Z,input_dim)*(X_train.max(axis=0)-X_train.min(axis=0))+X_train.min(axis=0)
 
         # create simple GP model
-        self.m = GPy.models.SparseGPRegression(X,y,Z=self.Z,kernel=self.kernel)
+        self.m = GPy.models.SparseGPRegression(X_train,y_train,Z=self.Z,kernel=self.kernel)
 
         # optimize
         if self.n_restarts_optimizer:
