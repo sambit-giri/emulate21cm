@@ -1,4 +1,6 @@
 import numpy as np
+from sklearn.metrics import r2_score
+
 try: import GPy
 except: print('Install GPy to use GPR_GPy and SparseGPR_GPy.')
 
