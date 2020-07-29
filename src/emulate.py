@@ -65,7 +65,7 @@ class GPRemul:
 			else:
 				print('Please provide the params as a text file or numpy array.')
 		else:
-			if self.params is None: self.params = params
+			if self.params is None: self.params = self.create_params(self.N)
 		if save_file is not None:
 			np.savetxt(save_file.split('.txt')[0]+'.txt', self.params)
 
@@ -183,7 +183,7 @@ class GPRemul_BO:
 			else:
 				print('Please provide the params as a text file or numpy array.')
 		else:
-			if self.params is None: self.params = params
+			if self.params is None: self.params = self.create_params(self.N)
 		if save_file is not None:
 			np.savetxt(save_file.split('.txt')[0]+'.txt', self.params)
 
