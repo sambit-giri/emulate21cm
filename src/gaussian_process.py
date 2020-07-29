@@ -164,182 +164,179 @@ class SVGPR_GPy:
         return scr
 
 class GPR_pyro:
-    def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, estimate_method='MLE', learning_rate=1e-3):
-        # define kernel
-        self.kernel     = kernel
-        self.max_iter   = max_iter
-        self.verbose    = verbose
-        self.n_jobs     = n_jobs
-        self.n_restarts_optimizer = n_restarts_optimizer
-        self.estimate_method = estimate_method
-        self.learning_rate   = learning_rate
-        self.loss_fn = loss_fn
-        self.tol     = tol
-    
-    def fit(self, train_x, train_y):
-    	if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
-    	if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
-        # check kernel
-        if self.kernel is None:
-            print('Setting kernel to Matern32.')
-            input_dim = train_x.shape[1]
+	def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, estimate_method='MLE', learning_rate=1e-3):
+		# define kernel
+		self.kernel     = kernel
+		self.max_iter   = max_iter
+		self.verbose    = verbose
+		self.n_jobs     = n_jobs
+		self.n_restarts_optimizer = n_restarts_optimizer
+		self.estimate_method = estimate_method
+		self.learning_rate   = learning_rate
+		self.loss_fn = loss_fn
+		self.tol     = tol
+
+	def fit(self, train_x, train_y):
+		if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
+		if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
+		# check kernel
+		if self.kernel is None:
+			print('Setting kernel to Matern32.')
+			input_dim = train_x.shape[1]
 			self.kernel = gp.kernels.Matern32(input_dim, variance=None, lengthscale=None, active_dims=None)
 
-        # create simple GP model
-        self.model = gp.models.GPRegression(train_x, train_y, kernel)
+		# create simple GP model
+		self.model = gp.models.GPRegression(train_x, train_y, kernel)
 
-        # optimize
+		# optimize
 		self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
 		if self.loss_fn is None: self.loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
 		self.losses = np.array([])
 		n_wait, max_wait = 0, 5
 
 		for i in range(self.max_iter):
-    		self.optimizer.zero_grad()
-    		loss = self.loss_fn(self.model.model, self.model.guide)
-    		loss.backward()
-   			self.optimizer.step()
-   			self.losses = np.append(self.losses,loss.item()) 
-   			print(i+1, loss.item())
-   			dloss = self.losses[-1]-self.losses[-2]    			
-   			if 0<=dloss and dloss<self.tol: n_wait += 1
-    		else: n_wait = 0
-    		if self.n_wait>=self.max_wait: break
-        
-        
-    def predict(self, X_test, return_std=True, return_cov=False):
-    	y_mean, y_cov = self.model(X_test, full_cov=True, noiseless=False)
-    	
-        if return_std: 
-        	y_std = cov.diag().sqrt()
-        	return y_pred, y_std
-        if return_cov: return y_pred, y_cov
-        return y_pred
-    
-    def score(self, X_test, y_test):
-        y_pred = self.predict(X_test, return_std=False, return_cov=False)
-        scr = r2_score(y_test, y_pred)
-        return scr
+			self.optimizer.zero_grad()
+			loss = self.loss_fn(self.model.model, self.model.guide)
+			loss.backward()
+			self.optimizer.step()
+			self.losses = np.append(self.losses,loss.item()) 
+			print(i+1, loss.item())
+			dloss = self.losses[-1]-self.losses[-2]    			
+			if 0<=dloss and dloss<self.tol: n_wait += 1
+			else: n_wait = 0
+			if self.n_wait>=self.max_wait: break
+
+	def predict(self, X_test, return_std=True, return_cov=False):
+		y_mean, y_cov = self.model(X_test, full_cov=True, noiseless=False)
+
+		if return_std: 
+			y_std = cov.diag().sqrt()
+			return y_pred, y_std
+		if return_cov: return y_pred, y_cov
+		return y_pred
+
+	def score(self, X_test, y_test):
+		y_pred = self.predict(X_test, return_std=False, return_cov=False)
+		scr = r2_score(y_test, y_pred)
+		return scr
 
 class SparseGPR_pyro:
-    def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, estimate_method='MLE', learning_rate=1e-3):
-        # define kernel
-        self.kernel     = kernel
-        self.max_iter   = max_iter
-        self.verbose    = verbose
-        self.n_jobs     = n_jobs
-        self.n_restarts_optimizer = n_restarts_optimizer
-        self.estimate_method = estimate_method
-        self.learning_rate   = learning_rate
-        self.loss_fn = loss_fn
-        self.tol     = tol
-    
-    def fit(self, train_x, train_y, n_Xu=10):
-    	if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
-    	if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
-        # check kernel
-        if self.kernel is None:
-            print('Setting kernel to Matern32.')
-            input_dim = train_x.shape[1]
+	def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, estimate_method='MLE', learning_rate=1e-3):
+		# define kernel
+		self.kernel     = kernel
+		self.max_iter   = max_iter
+		self.verbose    = verbose
+		self.n_jobs     = n_jobs
+		self.n_restarts_optimizer = n_restarts_optimizer
+		self.estimate_method = estimate_method
+		self.learning_rate   = learning_rate
+		self.loss_fn = loss_fn
+		self.tol     = tol
+
+	def fit(self, train_x, train_y, n_Xu=10):
+		if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
+		if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
+		# check kernel
+		if self.kernel is None:
+			print('Setting kernel to Matern32.')
+			input_dim = train_x.shape[1]
 			self.kernel = gp.kernels.Matern32(input_dim, variance=None, lengthscale=None, active_dims=None)
 
 		self.Xu = np.linspace(train_x.min(axis=0)[0].data.numpy(), train_x.max(axis=0)[0].data.numpy(), n_Xu)
 		self.Xu = torch.from_numpy(self.Xu)
 
-        # create simple GP model
-        self.model = gp.models.SparseGPRegression(train_x, train_y, self.kernel, Xu=self.Xu, jitter=1.0e-5)
+		# create simple GP model
+		self.model = gp.models.SparseGPRegression(train_x, train_y, self.kernel, Xu=self.Xu, jitter=1.0e-5)
 
-        # optimize
+		# optimize
 		self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
 		if self.loss_fn is None: self.loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
 		self.losses = np.array([])
 		n_wait, max_wait = 0, 5
 
 		for i in range(self.max_iter):
-    		self.optimizer.zero_grad()
-    		loss = self.loss_fn(self.model.model, self.model.guide)
-    		loss.backward()
-   			self.optimizer.step()
-   			self.losses = np.append(self.losses,loss.item()) 
-   			print(i+1, loss.item())
-   			dloss = self.losses[-1]-self.losses[-2]    			
-   			if 0<=dloss and dloss<self.tol: n_wait += 1
-    		else: n_wait = 0
-    		if self.n_wait>=self.max_wait: break
-        
-        
-    def predict(self, X_test, return_std=True, return_cov=False):
-    	y_mean, y_cov = self.model(X_test, full_cov=True, noiseless=False)
-    	
-        if return_std: 
-        	y_std = cov.diag().sqrt()
-        	return y_pred, y_std
-        if return_cov: return y_pred, y_cov
-        return y_pred
-    
-    def score(self, X_test, y_test):
-        y_pred = self.predict(X_test, return_std=False, return_cov=False)
-        scr = r2_score(y_test, y_pred)
-        return scr
+			self.optimizer.zero_grad()
+			loss = self.loss_fn(self.model.model, self.model.guide)
+			loss.backward()
+			self.optimizer.step()
+			self.losses = np.append(self.losses,loss.item()) 
+			print(i+1, loss.item())
+			dloss = self.losses[-1]-self.losses[-2]    			
+			if 0<=dloss and dloss<self.tol: n_wait += 1
+			else: n_wait = 0
+			if self.n_wait>=self.max_wait: break
+
+	def predict(self, X_test, return_std=True, return_cov=False):
+		y_mean, y_cov = self.model(X_test, full_cov=True, noiseless=False)
+
+		if return_std: 
+			y_std = cov.diag().sqrt()
+			return y_pred, y_std
+		if return_cov: return y_pred, y_cov
+		return y_pred
+
+	def score(self, X_test, y_test):
+		y_pred = self.predict(X_test, return_std=False, return_cov=False)
+		scr = r2_score(y_test, y_pred)
+		return scr
 
 
 class GPR_GPyTorch:
-    def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, estimate_method='MLE', learning_rate=1e-3):
-        # define kernel
-        self.kernel     = kernel
-        self.max_iter   = max_iter
-        self.verbose    = verbose
-        self.n_jobs     = n_jobs
-        self.n_restarts_optimizer = n_restarts_optimizer
-        self.estimate_method = estimate_method
-        self.learning_rate   = learning_rate
-        self.loss_fn = loss_fn
-        self.tol     = tol
-    
-    def fit(self, train_x, train_y, n_Xu=10):
-    	if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
-    	if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
-        # check kernel
-        if self.kernel is None:
-            print('Setting kernel to Matern32.')
-            input_dim = train_x.shape[1]
+	def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, estimate_method='MLE', learning_rate=1e-3):
+		# define kernel
+		self.kernel     = kernel
+		self.max_iter   = max_iter
+		self.verbose    = verbose
+		self.n_jobs     = n_jobs
+		self.n_restarts_optimizer = n_restarts_optimizer
+		self.estimate_method = estimate_method
+		self.learning_rate   = learning_rate
+		self.loss_fn = loss_fn
+		self.tol     = tol
+
+	def fit(self, train_x, train_y, n_Xu=10):
+		if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
+		if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
+		# check kernel
+		if self.kernel is None:
+			print('Setting kernel to Matern32.')
+			input_dim = train_x.shape[1]
 			self.kernel = gp.kernels.Matern32(input_dim, variance=None, lengthscale=None, active_dims=None)
 
 		self.Xu = np.linspace(train_x.min(axis=0)[0].data.numpy(), train_x.max(axis=0)[0].data.numpy(), n_Xu)
 		self.Xu = torch.from_numpy(self.Xu)
 
-        # create simple GP model
-        self.model = gp.models.SparseGPRegression(train_x, train_y, self.kernel, Xu=self.Xu, jitter=1.0e-5)
+		# create simple GP model
+		self.model = gp.models.SparseGPRegression(train_x, train_y, self.kernel, Xu=self.Xu, jitter=1.0e-5)
 
-        # optimize
+		# optimize
 		self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
 		if self.loss_fn is None: self.loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
 		self.losses = np.array([])
 		n_wait, max_wait = 0, 5
 
 		for i in range(self.max_iter):
-    		self.optimizer.zero_grad()
-    		loss = self.loss_fn(self.model.model, self.model.guide)
-    		loss.backward()
-   			self.optimizer.step()
-   			self.losses = np.append(self.losses,loss.item()) 
-   			print(i+1, loss.item())
-   			dloss = self.losses[-1]-self.losses[-2]    			
-   			if 0<=dloss and dloss<self.tol: n_wait += 1
-    		else: n_wait = 0
-    		if self.n_wait>=self.max_wait: break
-        
-        
-    def predict(self, X_test, return_std=True, return_cov=False):
-    	y_mean, y_cov = self.model(X_test, full_cov=True, noiseless=False)
-    	
-        if return_std: 
-        	y_std = cov.diag().sqrt()
-        	return y_pred, y_std
-        if return_cov: return y_pred, y_cov
-        return y_pred
-    
-    def score(self, X_test, y_test):
-        y_pred = self.predict(X_test, return_std=False, return_cov=False)
-        scr = r2_score(y_test, y_pred)
-        return scr
+			self.optimizer.zero_grad()
+			loss = self.loss_fn(self.model.model, self.model.guide)
+			loss.backward()
+			self.optimizer.step()
+			self.losses = np.append(self.losses,loss.item()) 
+			print(i+1, loss.item())
+			dloss = self.losses[-1]-self.losses[-2]    			
+			if 0<=dloss and dloss<self.tol: n_wait += 1
+			else: n_wait = 0
+			if self.n_wait>=self.max_wait: break
+
+	def predict(self, X_test, return_std=True, return_cov=False):
+		y_mean, y_cov = self.model(X_test, full_cov=True, noiseless=False)
+
+		if return_std: 
+			y_std = cov.diag().sqrt()
+			return y_pred, y_std
+		if return_cov: return y_pred, y_cov
+		return y_pred
+
+	def score(self, X_test, y_test):
+		y_pred = self.predict(X_test, return_std=False, return_cov=False)
+		scr = r2_score(y_test, y_pred)
+		return scr
