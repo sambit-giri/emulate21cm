@@ -64,7 +64,7 @@ class GPR_GPy:
 
 
 class SparseGPR_GPy:
-    def __init__(self, max_iter=1000, max_f_eval=1000, kernel=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, n_Z=10):
+    def __init__(self, max_iter=1000, max_f_eval=1000, kernel=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, num_inducing=10):
         # define kernel
         self.kernel     = kernel
         self.max_iter   = max_iter
@@ -73,6 +73,7 @@ class SparseGPR_GPy:
         self.n_jobs     = n_jobs
         self.n_restarts_optimizer = n_restarts_optimizer
         self.n_Z = n_Z
+        self.num_inducing = num_inducing
     
     def fit(self, X_train, y_train):
         input_dim = X_train.shape[1]
@@ -83,10 +84,11 @@ class SparseGPR_GPy:
             self.kernel = GPy.kern.Matern32(input_dim,ARD=True)
 
         # define inducing points
-        self.Z = np.random.rand(self.n_Z,input_dim)*(X_train.max(axis=0)-X_train.min(axis=0))+X_train.min(axis=0)
+        # self.Z = np.random.rand(self.num_inducing,input_dim)*(X_train.max(axis=0)-X_train.min(axis=0))+X_train.min(axis=0)
 
         # create simple GP model
-        self.m = GPy.models.SparseGPRegression(X_train,y_train,Z=self.Z,kernel=self.kernel)
+        # self.m = GPy.models.SparseGPRegression(X_train,y_train,Z=self.Z,kernel=self.kernel)
+        self.m = GPy.models.SparseGPRegression(X,y,num_inducing=self.num_inducing,kernel=self.kernel)
 
         # optimize
         if self.n_restarts_optimizer:
