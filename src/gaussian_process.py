@@ -72,7 +72,6 @@ class SparseGPR_GPy:
         self.verbose    = verbose
         self.n_jobs     = n_jobs
         self.n_restarts_optimizer = n_restarts_optimizer
-        self.n_Z = n_Z
         self.num_inducing = num_inducing
     
     def fit(self, X_train, y_train):
