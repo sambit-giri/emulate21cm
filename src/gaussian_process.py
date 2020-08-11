@@ -77,7 +77,7 @@ class SparseGPR_GPy:
         self.n_restarts_optimizer = n_restarts_optimizer
         self.num_inducing = num_inducing
 
-    def setup_model(self, X_train, y_train)
+    def setup_model(self, X_train, y_train):
     	input_dim = X_train.shape[1]
         # check kernel
         if self.kernel is None:
