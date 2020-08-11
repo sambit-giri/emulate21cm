@@ -78,7 +78,7 @@ class SparseGPR_GPy:
         self.num_inducing = num_inducing
 
     def setup_model(self, X_train, y_train):
-    	input_dim = X_train.shape[1]
+        input_dim = X_train.shape[1]
         # check kernel
         if self.kernel is None:
             print('Setting kernel to Matern32.')
@@ -93,7 +93,7 @@ class SparseGPR_GPy:
         self.m = GPy.models.SparseGPRegression(X_train,y_train,num_inducing=self.num_inducing,kernel=self.kernel)
 
     def fit(self, X_train, y_train):
-    	self.setup_model(X_train, y_train)
+        self.setup_model(X_train, y_train)
         
         # optimize
         if self.n_restarts_optimizer:
@@ -110,7 +110,7 @@ class SparseGPR_GPy:
         else:
             self.m.optimize(messages=self.verbose, max_f_eval=self.max_f_eval)
         if self.verbose:
-        	print(self.m)
+            print(self.m)
         
     def predict(self, X_test, return_std=False):
         y_pred, y_std = self.m.predict(X_test)
