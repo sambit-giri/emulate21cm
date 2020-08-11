@@ -109,8 +109,9 @@ class SparseGPR_GPy:
                 )
         else:
             self.m.optimize(messages=self.verbose, max_f_eval=self.max_f_eval)
-        if self.verbose:
-            print(self.m)
+        # if self.verbose:
+        #     print(self.m)
+        return self.m
         
     def predict(self, X_test, return_std=False):
         y_pred, y_std = self.m.predict(X_test)
