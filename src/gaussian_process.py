@@ -18,7 +18,7 @@ except:
 try:
 	import gpytorch
 except:
-	print('Install Pyro to use GPR_GPyTorch.')
+	print('Install gpytorch to use GPR_GPyTorch.')
 
 
 class GPR_GPy:
