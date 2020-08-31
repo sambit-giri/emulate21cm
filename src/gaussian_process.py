@@ -378,12 +378,13 @@ class GPR_GPyTorch:
 
         if return_std: 
             y_std = y_cov.diag().sqrt()
-            return y_mean, y_std
-        if return_cov: return y_mean, y_cov
-        return y_mean
+            return y_mean.detach().numpy(), y_std.detach().numpy()
+        if return_cov: return y_mean.detach().numpy(), y_cov.detach().numpy()
+        return y_mean.detach().numpy()
 
     def score(self, X_test, y_test):
         if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
+        if type(y_test)==torch.Tensor: y_test = y_test.detach().numpy()
 
         y_pred = self.predict(X_test, return_std=False, return_cov=False)
         scr = r2_score(y_test, y_pred)
