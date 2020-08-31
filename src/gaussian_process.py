@@ -300,7 +300,7 @@ class SparseGPR_pyro:
             loss.backward()
             self.optimizer.step()
             self.losses = np.append(self.losses,loss.item()) 
-            print(i+1, loss.item())
+            if self.verbose: print(i+1, loss.item())
             dloss = self.losses[-1]-self.losses[-2] if len(self.losses)>2 else self.tol*1000			
             if 0<=dloss and dloss<self.tol: n_wait += 1
             else: n_wait = 0
@@ -366,7 +366,7 @@ class GPR_GPyTorch:
             loss.backward()
             self.optimizer.step()
             self.losses = np.append(self.losses,loss.item()) 
-            print(i+1, loss.item())
+            if self.verbose: print(i+1, loss.item())
             dloss = self.losses[-1]-self.losses[-2]    			
             if 0<=dloss and dloss<self.tol: n_wait += 1
             else: n_wait = 0
