@@ -304,8 +304,7 @@ class SparseGPR_pyro:
 			dloss = self.losses[-1]-self.losses[-2] if len(self.losses)>2 else self.tol*1000			
 			if 0<=dloss and dloss<self.tol: n_wait += 1
 			else: n_wait = 0
-			# if self.n_wait>=self.max_wait: break
-            if n_wait>=max_wait: break
+			if n_wait>=max_wait: break
 
 	def predict(self, X_test, return_std=True, return_cov=False):
 		y_mean, y_cov = self.model(X_test, full_cov=True, noiseless=False)
