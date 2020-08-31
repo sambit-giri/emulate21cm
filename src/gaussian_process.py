@@ -368,13 +368,15 @@ class GPR_GPyTorch:
 			if self.n_wait>=self.max_wait: break
 
 	def predict(self, X_test, return_std=True, return_cov=False):
+        if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
+
 		y_mean, y_cov = self.model(X_test, full_cov=True, noiseless=False)
 
 		if return_std: 
-			y_std = cov.diag().sqrt()
-			return y_pred, y_std
-		if return_cov: return y_pred, y_cov
-		return y_pred
+			y_std = y_cov.diag().sqrt()
+			return y_mean, y_std
+		if return_cov: return y_mean, y_cov
+		return y_mean
 
 	def score(self, X_test, y_test):
 		y_pred = self.predict(X_test, return_std=False, return_cov=False)
