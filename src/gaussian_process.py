@@ -65,6 +65,35 @@ class GPR_GPy:
         scr = r2_score(y_test, y_pred)
         return scr
 
+    def save_model(self, filename, save_trainset=True):
+        # np.save(filename, self.m.param_array)
+        save_dict = {'kernel': self.m.kern.to_dict(), 'param_array': self.m.param_array, 'num_inducing': self.num_inducing}
+        if save_trainset:
+            save_dict['X'] = np.array(self.m.X)
+            save_dict['Y'] = np.array(self.m.Y)
+        pickle.dump(save_dict, open(filename, 'wb'))
+        print('Model parameters are saved.')
+
+    def load_model(self, filename, X=None, Y=None):
+        load_dict = pickle.load(open(filename, 'rb'))
+        self.kernel = GPy.kern.Kern.from_dict(load_dict['kernel'])
+        self.num_inducing = load_dict['num_inducing']
+        if 'X' in load_dict.keys() and 'Y' in load_dict.keys():
+            X = load_dict['X']
+            Y = load_dict['Y']
+        else:
+            print('The file does not contain the training data.')
+            print('Please provide it to the load_model through X and Y parameters.')
+            return None
+        
+        m_load = GPy.models.SparseGPRegression(X, Y, initialize=False, num_inducing=self.num_inducing, kernel=self.kernel)
+        m_load.update_model(False)
+        m_load.initialize_parameter()
+        m_load[:] = load_dict['param_array']
+        m_load.update_model(True)
+        self.m = m_load
+        return m_load
+
 
 class SparseGPR_GPy:
     def __init__(self, max_iter=1000, max_f_eval=1000, kernel=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, num_inducing=10):
