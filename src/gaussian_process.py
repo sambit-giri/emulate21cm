@@ -86,7 +86,7 @@ class GPR_GPy:
             print('Please provide it to the load_model through X and Y parameters.')
             return None
         
-        m_load = GPy.models.SparseGPRegression(X, Y, initialize=False, num_inducing=self.num_inducing, kernel=self.kernel)
+        m_load = GPy.models.GPRegression(X, Y, initialize=False, num_inducing=self.num_inducing, kernel=self.kernel)
         m_load.update_model(False)
         m_load.initialize_parameter()
         m_load[:] = load_dict['param_array']
