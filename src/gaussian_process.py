@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.metrics import r2_score
 import pickle
+from . import helper_functions as hf
 
 try: import GPy
 except: print('Install GPy to use GPR_GPy and SparseGPR_GPy.')
@@ -290,7 +291,7 @@ class GPR_pyro:
 		return scr
 
 class SparseGPR_pyro:
-    def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, estimate_method='MLE', learning_rate=1e-3):
+    def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_Xu=10, n_jobs=0, estimate_method='MLE', learning_rate=1e-3, method='VFE'):
         # define kernel
         self.kernel     = kernel
         self.max_iter   = max_iter
@@ -301,8 +302,11 @@ class SparseGPR_pyro:
         self.learning_rate   = learning_rate
         self.loss_fn = loss_fn
         self.tol     = tol
+        self.n_Xu    = n_Xu
+        self.method  = method
 
-    def fit(self, train_x, train_y, n_Xu=10):
+    def fit_1out(self, train_x, train_y, n_Xu=None):
+        if n_Xu is not None: self.n_Xu = n_Xu
         if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
         if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
         # check kernel
@@ -311,29 +315,54 @@ class SparseGPR_pyro:
             input_dim = train_x.shape[1]
             self.kernel = gp.kernels.Matern32(input_dim, variance=None, lengthscale=None, active_dims=None)
 
-        self.Xu = np.linspace(train_x.min(axis=0)[0].data.numpy(), train_x.max(axis=0)[0].data.numpy(), n_Xu)
+        self.Xu = np.linspace(train_x.min(axis=0)[0].data.numpy(), train_x.max(axis=0)[0].data.numpy(), self.n_Xu)
         self.Xu = torch.from_numpy(self.Xu)
 
         # create simple GP model
-        self.model = gp.models.SparseGPRegression(train_x, train_y, self.kernel, Xu=self.Xu, jitter=1.0e-5)
+        model = gp.models.SparseGPRegression(train_x, train_y, self.kernel, Xu=self.Xu, jitter=1.0e-5, approx=self.method)
 
         # optimize
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
         if self.loss_fn is None: self.loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
-        self.losses = np.array([])
+        losses = np.array([])
         n_wait, max_wait = 0, 5
 
         for i in range(self.max_iter):
-            self.optimizer.zero_grad()
+            optimizer.zero_grad()
             loss = self.loss_fn(self.model.model, self.model.guide)
             loss.backward()
-            self.optimizer.step()
-            self.losses = np.append(self.losses,loss.item()) 
-            if self.verbose: print(i+1, loss.item())
-            dloss = self.losses[-1]-self.losses[-2] if len(self.losses)>2 else self.tol*1000			
+            optimizer.step()
+            losses = np.append(self.losses,loss.item()) 
+            if self.verbose: 
+                hf.loading_verbose('                                                       ')
+                hf.loading_verbose('{0} {1:.2f}'.format(i+1, loss.item()))
+            dloss = losses[-1]-losses[-2] if len(losses)>2 else tol*1000			
             if 0<=dloss and dloss<self.tol: n_wait += 1
             else: n_wait = 0
             if n_wait>=max_wait: break
+
+        return model, optimizer, losses
+
+    def fit(self, train_x, train_y, n_Xu=None):
+        if n_Xu is not None: self.n_Xu = n_Xu
+        if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
+        if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
+        # check kernel
+        if self.kernel is None:
+            print('Setting kernel to Matern32.')
+            input_dim = train_x.shape[1]
+            self.kernel = gp.kernels.Matern32(input_dim, variance=None, lengthscale=None, active_dims=None)
+
+        if train_y.ndim>1:
+            model, optimizer, losses = self.fit_1out(train_x, train_y)
+            self.model, self.optimizer, self.losses = model, optimizer, losses
+        else:
+            self.model, self.optimizer, self.losses = {}, {}, {}
+            for i in range(train_y.shape[1]):
+                print('Regressing output variable {}'.format(i))
+                model, optimizer, losses = self.fit_1out(train_x, train_y)
+                self.model[i], self.optimizer[i], self.losses[i] = model, optimizer, losses
+                print('...done')
 
     def predict(self, X_test, return_std=True, return_cov=False):
         if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
