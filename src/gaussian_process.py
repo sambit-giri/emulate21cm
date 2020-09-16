@@ -360,11 +360,11 @@ class SparseGPR_pyro:
             self.model, self.optimizer, self.losses = {}, {}, {}
             for i in range(train_y.shape[1]):
                 print('Regressing output variable {}'.format(i))
-                model, optimizer, losses = self.fit_1out(train_x, train_y)
+                model, optimizer, losses = self.fit_1out(train_x, train_y[:,i])
                 self.model[i], self.optimizer[i], self.losses[i] = model, optimizer, losses
                 print('...done')
 
-    def predict(self, X_test, return_std=True, return_cov=False):
+    def predict_1out(self, X_test, return_std=True, return_cov=False):
         if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
         
         y_mean, y_cov = self.model(X_test, full_cov=True, noiseless=False)
@@ -374,6 +374,12 @@ class SparseGPR_pyro:
             return y_mean.detach().numpy(), y_std.detach().numpy()
         if return_cov: return y_mean.detach().numpy(), y_cov.detach().numpy()
         return y_mean.detach().numpy()
+
+    def predict(self, X_test, return_std=True, return_cov=False):
+        if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
+        if type(self.model) is dict:
+            
+
 
     def score(self, X_test, y_test):
         if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
