@@ -377,7 +377,7 @@ class SparseGPR_pyro:
 
     def predict(self, X_test, return_std=True, return_cov=False):
         if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
-        if type(self.model) is dict:
+        # if type(self.model) is dict:
             
 
 
