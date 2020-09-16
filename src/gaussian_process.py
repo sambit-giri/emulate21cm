@@ -386,7 +386,7 @@ class SparseGPR_pyro:
             if return_std:
                 y_std = [np.sqrt(np.diag(y_cov1)) for y_cov1 in y_cov]
                 return np.array(y_mean).T, np.array(y_std).T
-            if return_cov: return np.array(y_mean), np.array(y_cov)
+            if return_cov: return np.array(y_mean).T, np.array(y_cov).T
             return np.array(y_mean).T
 
 
