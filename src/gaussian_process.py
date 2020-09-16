@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.metrics import r2_score
 import pickle
 from . import helper_functions as hf
+from time import time
 
 try: import GPy
 except: print('Install GPy to use GPR_GPy and SparseGPR_GPy.')
@@ -291,7 +292,7 @@ class GPR_pyro:
 		return scr
 
 class SparseGPR_pyro:
-    def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_Xu=10, n_jobs=0, estimate_method='MLE', learning_rate=1e-3, method='VFE'):
+    def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_Xu=10, n_jobs=0, estimate_method='MLE', learning_rate=1e-3, method='VFE', n_restarts_optimizer=5):
         # define kernel
         self.kernel     = kernel
         self.max_iter   = max_iter
@@ -353,16 +354,20 @@ class SparseGPR_pyro:
             input_dim = train_x.shape[1]
             self.kernel = gp.kernels.Matern32(input_dim, variance=None, lengthscale=None, active_dims=None)
 
+        tstart = time()
         if train_y.ndim==1:
             model, optimizer, losses = self.fit_1out(train_x, train_y)
             self.model, self.optimizer, self.losses = model, optimizer, losses
+            tend = time()
+            print('\n...done | Time elapsed: {:.2f} s'.format(tend-tstart))
         else:
             self.model, self.optimizer, self.losses = {}, {}, {}
             for i in range(train_y.shape[1]):
-                print('Regressing output variable {}'.format(i))
+                print('Regressing output variable {}'.format(i+1))
                 model, optimizer, losses = self.fit_1out(train_x, train_y[:,i])
                 self.model[i], self.optimizer[i], self.losses[i] = model, optimizer, losses
-                print('\n...done')
+                tend = time()
+                print('\n...done | Time elapsed: {:.2f} s'.format(tend-tstart))
 
     def predict_1out(self, X_test, return_std=True, return_cov=False):
         if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
