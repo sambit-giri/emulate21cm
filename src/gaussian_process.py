@@ -336,7 +336,7 @@ class SparseGPR_pyro:
             if self.verbose: 
                 hf.loading_verbose('                                                       ')
                 hf.loading_verbose('{0} {1:.2f}'.format(i+1, loss.item()))
-            dloss = losses[-1]-losses[-2] if len(losses)>2 else tol*1000			
+            dloss = losses[-1]-losses[-2] if len(losses)>2 else self.tol*1000			
             if 0<=dloss and dloss<self.tol: n_wait += 1
             else: n_wait = 0
             if n_wait>=max_wait: break
