@@ -362,7 +362,7 @@ class SparseGPR_pyro:
                 print('Regressing output variable {}'.format(i))
                 model, optimizer, losses = self.fit_1out(train_x, train_y[:,i])
                 self.model[i], self.optimizer[i], self.losses[i] = model, optimizer, losses
-                print('...done')
+                print('\n...done')
 
     def predict_1out(self, X_test, return_std=True, return_cov=False):
         if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
@@ -384,10 +384,10 @@ class SparseGPR_pyro:
                 y_mean.append(y_mean0.detach().numpy())
                 y_cov.append(y_cov0.detach().numpy())
             if return_std:
-                y_std = [np.sqrt(y_cov1.diag()) for y_cov1 in y_cov]
-                return np.array(y_mean), np.array(y_std)
+                y_std = [np.sqrt(np.diag(y_cov1)) for y_cov1 in y_cov]
+                return np.array(y_mean).T, np.array(y_std).T
             if return_cov: return np.array(y_mean), np.array(y_cov)
-            return np.array(y_mean)
+            return np.array(y_mean).T
 
 
     def score(self, X_test, y_test):
