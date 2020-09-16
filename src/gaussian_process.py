@@ -334,7 +334,7 @@ class SparseGPR_pyro:
             optimizer.step()
             losses = np.append(losses,loss.item()) 
             if self.verbose: 
-                hf.loading_verbose('                                                       ')
+                hf.loading_verbose('                                       ')
                 hf.loading_verbose('{0} {1:.2f}'.format(i+1, loss.item()))
             dloss = losses[-1]-losses[-2] if len(losses)>2 else self.tol*1000			
             if 0<=dloss and dloss<self.tol: n_wait += 1
@@ -377,8 +377,17 @@ class SparseGPR_pyro:
 
     def predict(self, X_test, return_std=True, return_cov=False):
         if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
-        # if type(self.model) is dict:
-            
+        if type(self.model) is dict:
+            y_mean, y_cov = [], []
+            for i in range(len(self.model)):
+                y_mean0, y_cov0 = self.model[i](X_test, full_cov=True, noiseless=False)
+                y_mean.append(y_mean0.detach().numpy())
+                y_cov.append(y_cov0.detach().numpy())
+            if return_std:
+                y_std = [np.sqrt(y_cov1.diag()) for y_cov1 in y_cov]
+                return np.array(y_mean), np.array(y_std)
+            if return_cov: return np.array(y_mean), np.array(y_cov)
+            return np.array(y_mean)
 
 
     def score(self, X_test, y_test):
