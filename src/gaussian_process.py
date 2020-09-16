@@ -353,7 +353,7 @@ class SparseGPR_pyro:
             input_dim = train_x.shape[1]
             self.kernel = gp.kernels.Matern32(input_dim, variance=None, lengthscale=None, active_dims=None)
 
-        if train_y.ndim>1:
+        if train_y.ndim==1:
             model, optimizer, losses = self.fit_1out(train_x, train_y)
             self.model, self.optimizer, self.losses = model, optimizer, losses
         else:
