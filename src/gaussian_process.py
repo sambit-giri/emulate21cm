@@ -322,17 +322,17 @@ class SparseGPR_pyro:
         model = gp.models.SparseGPRegression(train_x, train_y, self.kernel, Xu=self.Xu, jitter=1.0e-5, approx=self.method)
 
         # optimize
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+        optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
         if self.loss_fn is None: self.loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
         losses = np.array([])
         n_wait, max_wait = 0, 5
 
         for i in range(self.max_iter):
             optimizer.zero_grad()
-            loss = self.loss_fn(self.model.model, self.model.guide)
+            loss = self.loss_fn(model.model, model.guide)
             loss.backward()
             optimizer.step()
-            losses = np.append(self.losses,loss.item()) 
+            losses = np.append(losses,loss.item()) 
             if self.verbose: 
                 hf.loading_verbose('                                                       ')
                 hf.loading_verbose('{0} {1:.2f}'.format(i+1, loss.item()))
