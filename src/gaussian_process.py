@@ -361,7 +361,13 @@ class SparseGPR_pyro:
 
         tstart = time()
         if train_y.ndim==1:
-            past_info = {'model':self.model, 'losses':self.losses, 'optimizer':self.optimizer} if self.model is not None else None
+            if self.model is not None:
+                past_info = {}
+                past_info['model'] = self.model[i]
+                past_info['losses'] = self.losses[i], 
+                past_info['optimizer'] = self.optimizer[i]
+            else:
+                past_info = None
             model, optimizer, losses = self.fit_1out(train_x, train_y, past_info=past_info)
             self.model, self.optimizer, self.losses = model, optimizer, losses
             tend = time()
@@ -371,7 +377,13 @@ class SparseGPR_pyro:
                 self.model, self.optimizer, self.losses = {}, {}, {}
             for i in range(train_y.shape[1]):
                 print('Regressing output variable {}'.format(i+1))
-                past_info = {'model':self.model[i], 'losses':self.losses[i], 'optimizer':self.optimizer[i]} if self.model is not None else None
+                if self.model is not None:
+                    past_info = {}
+                    past_info['model'] = self.model[i]
+                    past_info['losses'] = self.losses[i], 
+                    past_info['optimizer'] = self.optimizer[i]
+                else:
+                    past_info = None
                 model, optimizer, losses = self.fit_1out(train_x, train_y[:,i], past_info=past_info)
                 self.model[i], self.optimizer[i], self.losses[i] = model, optimizer, losses
                 tend = time()
