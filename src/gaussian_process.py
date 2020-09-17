@@ -306,7 +306,12 @@ class SparseGPR_pyro:
         self.n_Xu    = n_Xu
         self.method  = method
 
-    def fit_1out(self, train_x, train_y, n_Xu=None):
+        # Initialise output
+        self.model = None
+        self.losses = None
+        self.optimizer = None
+
+    def fit_1out(self, train_x, train_y, n_Xu=None, past_info=None):
         if n_Xu is not None: self.n_Xu = n_Xu
         if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
         if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
@@ -320,12 +325,12 @@ class SparseGPR_pyro:
         self.Xu = torch.from_numpy(self.Xu)
 
         # create simple GP model
-        model = gp.models.SparseGPRegression(train_x, train_y, self.kernel, Xu=self.Xu, jitter=1.0e-5, approx=self.method)
+        model = gp.models.SparseGPRegression(train_x, train_y, self.kernel, Xu=self.Xu, jitter=1.0e-5, approx=self.method) if past_info is None else past_info['model']
 
         # optimize
-        optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
+        optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate) if past_info is None else past_info['optimizer']
         if self.loss_fn is None: self.loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
-        losses = np.array([])
+        losses = np.array([]) if past_info is None else past_info['losses']
         n_wait, max_wait = 0, 5
 
         for i in range(self.max_iter):
@@ -356,14 +361,17 @@ class SparseGPR_pyro:
 
         tstart = time()
         if train_y.ndim==1:
+            past_info = {'model':self.model, 'losses':self.losses, 'optimizer':self.optimizer} if self.model is not None else None
             model, optimizer, losses = self.fit_1out(train_x, train_y)
             self.model, self.optimizer, self.losses = model, optimizer, losses
             tend = time()
             print('\n...done | Time elapsed: {:.2f} s'.format(tend-tstart))
         else:
-            self.model, self.optimizer, self.losses = {}, {}, {}
+            if self.model is None:
+                self.model, self.optimizer, self.losses = {}, {}, {}
             for i in range(train_y.shape[1]):
                 print('Regressing output variable {}'.format(i+1))
+                past_info = {'model':self.model[i], 'losses':self.losses[i], 'optimizer':self.optimizer[i]} if self.model is not None else None
                 model, optimizer, losses = self.fit_1out(train_x, train_y[:,i])
                 self.model[i], self.optimizer[i], self.losses[i] = model, optimizer, losses
                 tend = time()
