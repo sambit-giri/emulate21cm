@@ -306,10 +306,11 @@ class SparseGPR_pyro:
         self.n_Xu    = n_Xu
         self.method  = method
 
-        # Initialise output
+        # # Initialise output
         self.model = None
         self.losses = None
         self.optimizer = None
+        self.continue_run = False
 
     def fit_1out(self, train_x, train_y, n_Xu=None, past_info=None):
         if n_Xu is not None: self.n_Xu = n_Xu
@@ -359,15 +360,11 @@ class SparseGPR_pyro:
             input_dim = train_x.shape[1]
             self.kernel = gp.kernels.Matern32(input_dim, variance=None, lengthscale=None, active_dims=None)
 
+        if self.model is not None: self.continue_run = True
+        
         tstart = time()
         if train_y.ndim==1:
-            if self.model is not None:
-                past_info = {}
-                past_info['model'] = self.model[i]
-                past_info['losses'] = self.losses[i], 
-                past_info['optimizer'] = self.optimizer[i]
-            else:
-                past_info = None
+            past_info = {'model':self.model, 'losses':self.losses, 'optimizer':self.optimizer} if self.continue_run else None
             model, optimizer, losses = self.fit_1out(train_x, train_y, past_info=past_info)
             self.model, self.optimizer, self.losses = model, optimizer, losses
             tend = time()
@@ -377,13 +374,7 @@ class SparseGPR_pyro:
                 self.model, self.optimizer, self.losses = {}, {}, {}
             for i in range(train_y.shape[1]):
                 print('Regressing output variable {}'.format(i+1))
-                if self.model is not None:
-                    past_info = {}
-                    past_info['model'] = self.model[i]
-                    past_info['losses'] = self.losses[i], 
-                    past_info['optimizer'] = self.optimizer[i]
-                else:
-                    past_info = None
+                past_info = {'model':self.model[i], 'losses':self.losses[i], 'optimizer':self.optimizer[i]} if self.continue_run else None
                 model, optimizer, losses = self.fit_1out(train_x, train_y[:,i], past_info=past_info)
                 self.model[i], self.optimizer[i], self.losses[i] = model, optimizer, losses
                 tend = time()
