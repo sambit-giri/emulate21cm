@@ -292,7 +292,7 @@ class GPR_pyro:
 		return scr
 
 class SparseGPR_pyro:
-    def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_Xu=10, n_jobs=0, estimate_method='MLE', learning_rate=1e-3, method='VFE', n_restarts_optimizer=5):
+    def __init__(self, max_iter=1000, tol=0.001, kernel=None, loss_fn=None, verbose=True, n_Xu=10, n_jobs=0, estimate_method='MLE', learning_rate=1e-3, method='VFE', n_restarts_optimizer=5):
         # define kernel
         self.kernel     = kernel
         self.max_iter   = max_iter
@@ -334,7 +334,7 @@ class SparseGPR_pyro:
         losses = np.array([]) if past_info is None else past_info['losses']
         n_wait, max_wait = 0, 5
 
-        for i in range(self.max_iter):
+        for i in range(losses.size,self.max_iter):
             optimizer.zero_grad()
             loss = self.loss_fn(model.model, model.guide)
             loss.backward()
@@ -361,7 +361,7 @@ class SparseGPR_pyro:
             self.kernel = gp.kernels.Matern32(input_dim, variance=None, lengthscale=None, active_dims=None)
 
         if self.model is not None: self.continue_run = True
-        
+
         tstart = time()
         if train_y.ndim==1:
             past_info = {'model':self.model, 'losses':self.losses, 'optimizer':self.optimizer} if self.continue_run else None
