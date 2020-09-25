@@ -345,8 +345,11 @@ class SparseGPR_pyro:
         optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate) if past_info is None else past_info['optimizer']
         if self.loss_fn is None: self.loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
         losses = np.array([]) if past_info is None else past_info['losses']
-        train_err = np.array([]) if past_info is None else past_info['train_err']
-        valid_err = np.array([]) if past_info is None else past_info['valid_err']
+
+        tr_err, vl_err = 10000, 10000
+        if self.validation is not None:
+            train_err = np.array([]) if past_info is None else past_info['train_err']
+            valid_err = np.array([]) if past_info is None else past_info['valid_err']
 
         n_wait, max_wait = 0, 5
 
@@ -363,8 +366,8 @@ class SparseGPR_pyro:
                 train_err = np.append(train_err, tr_err)
                 valid_err = np.append(valid_err, vl_err)
             if self.verbose: 
-                hf.loading_verbose('                                       ')
-                hf.loading_verbose('{0} {1:.2f}'.format(i+1, loss.item()))
+                hf.loading_verbose('                                                                                            ')
+                hf.loading_verbose('{0} | loss={1:.2f} | train_error={2:.3f} | validation_error={2:.3f}'.format(i+1, loss.item(), tr_err, vl_err))
             dloss = losses[-1]-losses[-2] if len(losses)>2 else self.tol*1000			
             if 0<=dloss and dloss<self.tol: n_wait += 1
             else: n_wait = 0
@@ -406,7 +409,7 @@ class SparseGPR_pyro:
                 for i in range(train_y.shape[1]):
                     print('Regressing output variable {}'.format(i+1))
                     past_info = {'model':self.model[i], 'losses':self.losses[i], 'optimizer':self.optimizer[i], 'train_err': self.train_err[i], 'valid_err':self.valid_err[i]} if self.continue_run else None
-                    model, optimizer, losses = self.fit_1out(train_x, train_y[:,i], past_info=past_info)
+                    model, optimizer, losses, train_err, valid_err = self.fit_1out(train_x, train_y[:,i], past_info=past_info)
                     self.model[i], self.optimizer[i], self.losses[i], self.train_err[i], self.valid_err[i] = model, optimizer, losses, train_err, valid_err
                     tend = time()
                     print('\n...done | Time elapsed: {:.2f} s'.format(tend-tstart))
