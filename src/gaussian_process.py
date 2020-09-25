@@ -3,6 +3,8 @@ from sklearn.metrics import r2_score
 import pickle
 from . import helper_functions as hf
 from time import time
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
 
 try: import GPy
 except: print('Install GPy to use GPR_GPy and SparseGPR_GPy.')
@@ -292,7 +294,7 @@ class GPR_pyro:
 		return scr
 
 class SparseGPR_pyro:
-    def __init__(self, max_iter=1000, tol=0.001, kernel=None, loss_fn=None, verbose=True, n_Xu=10, n_jobs=0, estimate_method='MLE', learning_rate=1e-3, method='VFE', n_restarts_optimizer=5):
+    def __init__(self, max_iter=1000, tol=0.001, kernel=None, error_fn=None, loss_fn=None, verbose=True, n_Xu=10, n_jobs=0, estimate_method='MLE', learning_rate=1e-3, method='VFE', n_restarts_optimizer=5, validation=0.1):
         # define kernel
         self.kernel     = kernel
         self.max_iter   = max_iter
@@ -305,15 +307,26 @@ class SparseGPR_pyro:
         self.tol     = tol
         self.n_Xu    = n_Xu
         self.method  = method
+        self.error_fn   = mean_squared_error if error_fn is None else error_fn
+        self.validation = validation
 
         # # Initialise output
         self.model = None
         self.losses = None
         self.optimizer = None
         self.continue_run = False
+        self.train_err = None
+        self.valid_err = None
 
     def fit_1out(self, train_x, train_y, n_Xu=None, past_info=None):
         if n_Xu is not None: self.n_Xu = n_Xu
+
+        if self.validation is not None:
+            if type(train_x)!=np.ndarray: train_x = train_x.detach().numpy()
+            if type(train_y)!=np.ndarray: train_y = train_y.detach().numpy()
+            train_x, valid_x, train_y, valid_y = train_test_split(train_x, train_y, test_size=self.validation, random_state=42)
+            valid_x = torch.from_numpy(valid_x)
+
         if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
         if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
         # check kernel
@@ -332,6 +345,9 @@ class SparseGPR_pyro:
         optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate) if past_info is None else past_info['optimizer']
         if self.loss_fn is None: self.loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
         losses = np.array([]) if past_info is None else past_info['losses']
+        train_err = np.array([]) if past_info is None else past_info['train_err']
+        valid_err = np.array([]) if past_info is None else past_info['valid_err']
+
         n_wait, max_wait = 0, 5
 
         for i in range(losses.size,self.max_iter):
@@ -340,6 +356,11 @@ class SparseGPR_pyro:
             loss.backward()
             optimizer.step()
             losses = np.append(losses,loss.item()) 
+            if self.validation is not None:
+                tr_err = self.error_fn(train_y.detach().numpy(), model(train_x, , full_cov=False).detach().numpy())
+                vl_err = self.error_fn(valid_y, model(valid_x, , full_cov=False).detach().numpy())
+                train_err = np.append(train_err, tr_err)
+                valid_err = np.append(valid_err, vl_err)
             if self.verbose: 
                 hf.loading_verbose('                                       ')
                 hf.loading_verbose('{0} {1:.2f}'.format(i+1, loss.item()))
@@ -348,10 +369,12 @@ class SparseGPR_pyro:
             else: n_wait = 0
             if n_wait>=max_wait: break
 
+        if self.validation is not None: return model, optimizer, losses, train_err, valid_err
         return model, optimizer, losses
 
     def fit(self, train_x, train_y, n_Xu=None):
         if n_Xu is not None: self.n_Xu = n_Xu
+
         if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
         if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
         # check kernel
@@ -364,21 +387,39 @@ class SparseGPR_pyro:
 
         tstart = time()
         if train_y.ndim==1:
-            past_info = {'model':self.model, 'losses':self.losses, 'optimizer':self.optimizer} if self.continue_run else None
-            model, optimizer, losses = self.fit_1out(train_x, train_y, past_info=past_info)
-            self.model, self.optimizer, self.losses = model, optimizer, losses
-            tend = time()
+            if self.validation is not None:
+                past_info = {'model':self.model, 'losses':self.losses, 'optimizer':self.optimizer, 'train_err': self.train_err, 'valid_err':self.valid_err} if self.continue_run else None
+                model, optimizer, losses, train_err, valid_err = self.fit_1out(train_x, train_y, past_info=past_info)
+                self.model, self.optimizer, self.losses, self.train_err, self.valid_err = model, optimizer, losses, train_err, valid_err
+                tend = time()
+            else:
+                past_info = {'model':self.model, 'losses':self.losses, 'optimizer':self.optimizer} if self.continue_run else None
+                model, optimizer, losses = self.fit_1out(train_x, train_y, past_info=past_info)
+                self.model, self.optimizer, self.losses = model, optimizer, losses
+                tend = time()
             print('\n...done | Time elapsed: {:.2f} s'.format(tend-tstart))
         else:
-            if self.model is None:
-                self.model, self.optimizer, self.losses = {}, {}, {}
-            for i in range(train_y.shape[1]):
-                print('Regressing output variable {}'.format(i+1))
-                past_info = {'model':self.model[i], 'losses':self.losses[i], 'optimizer':self.optimizer[i]} if self.continue_run else None
-                model, optimizer, losses = self.fit_1out(train_x, train_y[:,i], past_info=past_info)
-                self.model[i], self.optimizer[i], self.losses[i] = model, optimizer, losses
-                tend = time()
-                print('\n...done | Time elapsed: {:.2f} s'.format(tend-tstart))
+            if self.validation is not None:
+                if self.model is None:
+                    self.model, self.optimizer, self.losses, self.train_err, self.valid_err = {}, {}, {}, {}, {}
+                for i in range(train_y.shape[1]):
+                    print('Regressing output variable {}'.format(i+1))
+                    past_info = {'model':self.model[i], 'losses':self.losses[i], 'optimizer':self.optimizer[i], 'train_err': self.train_err[i], 'valid_err':self.valid_err[i]} if self.continue_run else None
+                    model, optimizer, losses = self.fit_1out(train_x, train_y[:,i], past_info=past_info)
+                    self.model[i], self.optimizer[i], self.losses[i], self.train_err[i], self.valid_err[i] = model, optimizer, losses, train_err, valid_err
+                    tend = time()
+                    print('\n...done | Time elapsed: {:.2f} s'.format(tend-tstart))
+            else:
+                if self.model is None:
+                    self.model, self.optimizer, self.losses = {}, {}, {}
+                for i in range(train_y.shape[1]):
+                    print('Regressing output variable {}'.format(i+1))
+                    past_info = {'model':self.model[i], 'losses':self.losses[i], 'optimizer':self.optimizer[i]} if self.continue_run else None
+                    model, optimizer, losses = self.fit_1out(train_x, train_y[:,i], past_info=past_info)
+                    self.model[i], self.optimizer[i], self.losses[i] = model, optimizer, losses
+                    tend = time()
+                    print('\n...done | Time elapsed: {:.2f} s'.format(tend-tstart))
+
 
     def predict_1out(self, X_test, return_std=True, return_cov=False):
         if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
@@ -416,7 +457,7 @@ class SparseGPR_pyro:
 
 
 class GPR_GPyTorch:
-    def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, estimate_method='MLE', learning_rate=1e-3):
+    def __init__(self, max_iter=1000, tol=0.01, kernel=None, n_Xu=10, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, estimate_method='MLE', learning_rate=1e-3):
         # define kernel
         self.kernel     = kernel
         self.max_iter   = max_iter
@@ -427,6 +468,8 @@ class GPR_GPyTorch:
         self.learning_rate   = learning_rate
         self.loss_fn = loss_fn
         self.tol     = tol
+        self.n_Xu    = n_Xu
+
 
     def fit(self, train_x, train_y, n_Xu=10):
         if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
