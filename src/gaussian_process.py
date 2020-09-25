@@ -357,7 +357,8 @@ class SparseGPR_pyro:
             optimizer.step()
             losses = np.append(losses,loss.item()) 
             if self.validation is not None:
-                tr_err = self.error_fn(train_y.detach().numpy(), model(train_x, full_cov=False).detach().numpy())
+                # print(type(train_y))
+                tr_err = self.error_fn(train_y.detach().numpy(), model(train_x, full_cov=False)[0].detach().numpy())
                 vl_err = self.error_fn(valid_y, model(valid_x, full_cov=False).detach().numpy())
                 train_err = np.append(train_err, tr_err)
                 valid_err = np.append(valid_err, vl_err)
