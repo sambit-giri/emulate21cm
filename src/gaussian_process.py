@@ -526,8 +526,8 @@ class GPR_GPyTorch:
         #     train_x, valid_x, train_y, valid_y = train_test_split(train_x, train_y, test_size=self.validation, random_state=42)
         #     valid_x = torch.from_numpy(valid_x)
 
-        if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x.astype(float32))
-        if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y.astype(float32))
+        if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x.astype(np.float32))
+        if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y.astype(np.float32))
         print(train_x.shape, train_y.shape)
 
         # Check kernel
@@ -587,7 +587,7 @@ class GPR_GPyTorch:
             self.optimizer.step()
 
     def predict(self, X_test, return_ci=True):
-        if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test.astype(float32))
+        if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test.astype(np.float32))
 
         # Get into evaluation (predictive posterior) mode
         model, likelihood = self.model, self.likelihood
@@ -682,8 +682,8 @@ class SVGP_GPyTorch:
         #     train_x, valid_x, train_y, valid_y = train_test_split(train_x, train_y, test_size=self.validation, random_state=42)
         #     valid_x = torch.from_numpy(valid_x)
 
-        if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x.astype(float32))
-        if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y.astype(float32))
+        if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x.astype(np.float32))
+        if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y.astype(np.float32))
         print(train_x.shape, train_y.shape)
 
         # Check kernel
@@ -743,7 +743,7 @@ class SVGP_GPyTorch:
             self.optimizer.step()
 
     def predict(self, X_test, return_ci=True):
-        if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
+        if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test.astype(np.float32))
 
         # Get into evaluation (predictive posterior) mode
         model, likelihood = self.model, self.likelihood

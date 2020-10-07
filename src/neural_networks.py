@@ -36,6 +36,8 @@ class prob_DenseNN:
         if epochs is not None: self.epochs = epochs
         if X_train.ndim<=1: X_train = X_train[:,None]
         if y_train.ndim<=1: y_train = y_train[:,None]
+        X_train = X_train.astype(np.float32)
+        y_train = y_train.astype(np.float32)
 
         input_dim, output_dim = X_train.shape[1], y_train.shape[1]
         self.prepare_model(input_dim, output_dim)
@@ -56,6 +58,7 @@ class prob_DenseNN:
 
     def predict(self, X_test, ci=0.95):
         if X_test.ndim>1: X_test = X_test[:,None]
+        X_test = X_test.astype(np.float32)
         y_pred = self.model.predict(X_test)
         return y_pred
 
