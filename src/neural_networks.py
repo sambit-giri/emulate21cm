@@ -34,27 +34,31 @@ class prob_DenseNN:
     
     def fit(self, X_train, y_train, epochs=None):
         if epochs is not None: self.epochs = epochs
-        if X_train.ndim>1: X_train = X_train[:,None]
-        if y_train.ndim>1: y_train = y_train[:,None]
+        if X_train.ndim<=1: X_train = X_train[:,None]
+        if y_train.ndim<=1: y_train = y_train[:,None]
 
         input_dim, output_dim = X_train.shape[1], y_train.shape[1]
         self.prepare_model(input_dim, output_dim)
 
+        callbacks = []
+        if self.verbose:
+        	callbacks.append(pf.callbacks.MonitorMetric('mse', X_train, y_train))
+
         self.model.fit(X_train, y_train, 
-        	num_workers=self.n_jobs, 
-        	optimizer=self.optimizer, 
-        	optimizer_kwargs=self.optimizer_kwargs,
-        	lr=self.lr,
-        	flipout=self.flipout,
-        	verbose=self.verbose,
-        	)
+                num_workers=self.n_jobs, 
+                optimizer=self.optimizer, 
+                optimizer_kwargs=self.optimizer_kwargs,
+                lr=self.lr,
+                flipout=self.flipout,
+                callbacks=callbacks,
+                )
 
     def predict(self, X_test, ci=0.95):
-    	if X_test.ndim>1: X_test = X_test[:,None]
+        if X_test.ndim>1: X_test = X_test[:,None]
         y_pred = self.model.predict(X_test)
         return y_pred
 
-    def predictive_interval(self, X_test, ci=0.95)
+    def predictive_interval(self, X_test, ci=0.95):
         lb, ub = self.model.predictive_interval(X_test, ci=ci)
         return lb, ub
     
@@ -69,4 +73,6 @@ class prob_DenseNN:
     def load_model(self, filename):
         self.model = pf.load(filename)
         return self.model
+
+
 
