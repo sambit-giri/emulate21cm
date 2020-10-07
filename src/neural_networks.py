@@ -71,8 +71,9 @@ class prob_DenseNN:
         return scr
 
     def save_model(self, filename):
+    	if filename.split('.')[-1] != 'pfm': filename = filename+'.pfm'
         self.model.save(filename)
-        print('Model parameters are saved.')
+        print('Model parameters are saved as', filename)
 
     def load_model(self, filename):
         self.model = pf.load(filename)
