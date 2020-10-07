@@ -49,6 +49,7 @@ class prob_DenseNN:
                 optimizer=self.optimizer, 
                 optimizer_kwargs=self.optimizer_kwargs,
                 lr=self.lr,
+                epochs=self.epochs
                 flipout=self.flipout,
                 callbacks=callbacks,
                 )
