@@ -6,9 +6,6 @@ from time import time
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 
-try: import GPy
-except: print('Install GPy to use GPR_GPy and SparseGPR_GPy.')
-
 try: import tensorflow as tf
 except: print('Install Tensorflow.')
 
@@ -18,7 +15,7 @@ except:
 	print('Install probflow to use prob_nn.')
 
 
-class prob_nn:
+class prob_DenseNN:
     def __init__(self, d_layer, epochs=1000, verbose=True, heteroscedastic=False, n_jobs=1, lr=None, flipout=True, optimizer=None, optimizer_kwargs={}):
         # define kernel
         self.d_layer = d_layer
@@ -49,6 +46,7 @@ class prob_nn:
         	optimizer_kwargs=self.optimizer_kwargs,
         	lr=self.lr,
         	flipout=self.flipout,
+        	verbose=self.verbose,
         	)
 
     def predict(self, X_test, ci=0.95):
