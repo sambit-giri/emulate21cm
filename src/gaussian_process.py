@@ -461,68 +461,312 @@ class SparseGPR_pyro:
 
 
 class GPR_GPyTorch:
-    def __init__(self, max_iter=1000, tol=0.01, kernel=None, n_Xu=10, loss_fn=None, verbose=True, n_restarts_optimizer=5, n_jobs=0, estimate_method='MLE', learning_rate=1e-3):
+    def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, learning_rate=1e-3, optimizer=None, validation=0.1):
         # define kernel
         self.kernel     = kernel
         self.max_iter   = max_iter
         self.verbose    = verbose
-        self.n_jobs     = n_jobs
-        self.n_restarts_optimizer = n_restarts_optimizer
-        self.estimate_method = estimate_method
         self.learning_rate   = learning_rate
         self.loss_fn = loss_fn
         self.tol     = tol
-        self.n_Xu    = n_Xu
+        self.optimizer  = optimizer
+        # self.validation = validation
 
+        self.train_loss = []
+        self.valid_loss = []
 
-    def fit(self, train_x, train_y, n_Xu=10):
-        if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x)
-        if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y)
-        # check kernel
+    def prepare_model(self, train_x, train_y, kernel=None):
+        multi_task = False
+        if train_y.ndim>1:
+            if train_y.shape[1]>1:
+                multi_task = True
+
+        if multi_task:
+            print('Model for Multivariate output.')
+            # We will use the GP model for multivariate output, exact inference
+            class MultitaskGPModel(gpytorch.models.ExactGP):
+                def __init__(self, train_x, train_y, likelihood):
+                    super(MultitaskGPModel, self).__init__(train_x, train_y, likelihood)
+                    self.mean_module = gpytorch.means.MultitaskMean(
+                        gpytorch.means.ConstantMean(), num_tasks=train_y.shape[1]
+                    )
+                    self.covar_module = gpytorch.kernels.MultitaskKernel(
+                        kernel, num_tasks=train_y.shape[1], rank=1
+                    )
+
+                def forward(self, x):
+                    mean_x = self.mean_module(x)
+                    covar_x = self.covar_module(x)
+                    return gpytorch.distributions.MultitaskMultivariateNormal(mean_x, covar_x)
+
+            # initialize likelihood and model
+            self.likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=train_y.shape[1])
+            self.model = MultitaskGPModel(train_x, train_y, self.likelihood)
+        else:
+            # We will use the simplest form of GP model, exact inference
+            class ExactGPModel(gpytorch.models.ExactGP):
+                def __init__(self, train_x, train_y, likelihood):
+                    super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
+                    self.mean_module = gpytorch.means.ConstantMean()
+                    self.covar_module = gpytorch.kernels.ScaleKernel(kernel)
+
+                def forward(self, x):
+                    mean_x = self.mean_module(x)
+                    covar_x = self.covar_module(x)
+                    return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+            # initialize likelihood and model
+            self.likelihood = gpytorch.likelihoods.GaussianLikelihood()
+            self.model = ExactGPModel(train_x, train_y, self.likelihood)
+
+    def fit(self, train_x, train_y):
+        # if self.validation is not None:
+        #     if type(train_x)!=np.ndarray: train_x = train_x.detach().numpy()
+        #     if type(train_y)!=np.ndarray: train_y = train_y.detach().numpy()
+        #     train_x, valid_x, train_y, valid_y = train_test_split(train_x, train_y, test_size=self.validation, random_state=42)
+        #     valid_x = torch.from_numpy(valid_x)
+
+        if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x.astype(float32))
+        if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y.astype(float32))
+        print(train_x.shape, train_y.shape)
+
+        # Check kernel
         if self.kernel is None:
             print('Setting kernel to Matern32.')
-            input_dim = train_x.shape[1]
-            self.kernel = gp.kernels.Matern32(input_dim, variance=None, lengthscale=None, active_dims=None)
-
-        self.Xu = np.linspace(train_x.min(axis=0)[0].data.numpy(), train_x.max(axis=0)[0].data.numpy(), n_Xu)
-        self.Xu = torch.from_numpy(self.Xu)
+            self.kernel = gpytorch.kernels.MaternKernel(nu=1.5)
 
         # create simple GP model
-        self.model = gp.models.SparseGPRegression(train_x, train_y, self.kernel, Xu=self.Xu, jitter=1.0e-5)
+        if len(self.train_loss)==0:
+            self.prepare_model(train_x, train_y, kernel=self.kernel)
+
+        # Find optimal model hyperparameters
+        self.model.train()
+        self.likelihood.train()
+
+
+        if self.optimizer is None: 
+            print('Using the adam optimizer.')
+            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+
+        # "Loss" for GPs - the marginal log likelihood
+        if self.loss_fn in [None, 'marginal_log_likelihood', 'mll']:
+            mll = gpytorch.mlls.ExactMarginalLogLikelihood(self.likelihood, self.model)
+        else: 
+            mll = self.loss_fn
 
         # optimize
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        if self.loss_fn is None: self.loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
-        self.losses = np.array([])
-        n_wait, max_wait = 0, 5
-
-        for i in range(self.max_iter):
+        for i in range(len(self.train_loss),self.max_iter):
+            # Zero gradients from previous iteration
             self.optimizer.zero_grad()
-            loss = self.loss_fn(self.model.model, self.model.guide)
+            # Output from model
+            output = self.model(train_x)
+            #print(type(output))
+            #print(output)
+            # Calc loss and backprop gradients
+            #print(output, train_y.shape)
+            loss = -mll(output, train_y)
             loss.backward()
+            self.train_loss.append(loss.item())
+
+            # if self.validation:
+            #     self.model.eval()
+            #     self.likelihood.eval()
+
+            #     valid_out = self.likelihood(self.model(valid_x))
+            #     valid_ls  = -mll(valid_out, valid_y)
+            #     self.valid_loss.append(valid_ls.item())
+            #     print('Iter %d/%d - Train Loss: %.3f   Valid Loss: %.3f   ' % (
+            #         i + 1, self.max_iter, self.train_loss[-1], self.valid_loss[-1]
+            #     ))
+            #     self.model.train()
+            #     self.likelihood.train()
+            # else:
+            print('Iter %d/%d - Loss: %.3f   ' % (
+                i + 1, self.max_iter, self.train_loss[-1]
+            ))
             self.optimizer.step()
-            self.losses = np.append(self.losses,loss.item()) 
-            if self.verbose: print(i+1, loss.item())
-            dloss = self.losses[-1]-self.losses[-2]    			
-            if 0<=dloss and dloss<self.tol: n_wait += 1
-            else: n_wait = 0
-            if self.n_wait>=self.max_wait: break
 
-    def predict(self, X_test, return_std=True, return_cov=False):
-        if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
-        
-        y_mean, y_cov = self.model(X_test, full_cov=True, noiseless=False)
+    def predict(self, X_test, return_ci=True):
+        if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test.astype(float32))
 
-        if return_std: 
-            y_std = y_cov.diag().sqrt()
-            return y_mean.detach().numpy(), y_std.detach().numpy()
-        if return_cov: return y_mean.detach().numpy(), y_cov.detach().numpy()
-        return y_mean.detach().numpy()
+        # Get into evaluation (predictive posterior) mode
+        model, likelihood = self.model, self.likelihood
+        model.eval()
+        likelihood.eval()
+
+
+        # Test points are regularly spaced along [0,1]
+        # Make predictions by feeding model through likelihood
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            observed_pred = likelihood(model(X_test))
+
+        if return_ci:
+            lower, upper = observed_pred.confidence_region()
+            return observed_pred.mean.numpy(), lower.detach().numpy(), upper.detach().numpy()
+
+        return observed_pred.detach().numpy()
+
 
     def score(self, X_test, y_test):
         if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
         if type(y_test)==torch.Tensor: y_test = y_test.detach().numpy()
 
-        y_pred = self.predict(X_test, return_std=False, return_cov=False)
+        y_pred = self.predict(X_test, return_ci=False)
+        scr = r2_score(y_test, y_pred)
+        return scr
+
+
+class SVGP_GPyTorch:
+    def __init__(self, max_iter=1000, tol=0.01, kernel=None, loss_fn=None, verbose=True, learning_rate=1e-3, optimizer=None, validation=0.1):
+        # define kernel
+        self.kernel     = kernel
+        self.max_iter   = max_iter
+        self.verbose    = verbose
+        self.learning_rate   = learning_rate
+        self.loss_fn = loss_fn
+        self.tol     = tol
+        self.optimizer  = optimizer
+        # self.validation = validation
+
+        self.train_loss = []
+        self.valid_loss = []
+
+    def prepare_model(self, train_x, train_y, kernel=None):
+        multi_task = False
+        if train_y.ndim>1:
+            if train_y.shape[1]>1:
+                multi_task = True
+
+        if multi_task:
+            print('Model for Multivariate output.')
+            # We will use the GP model for multivariate output, exact inference
+            class MultitaskGPModel(gpytorch.models.ExactGP):
+                def __init__(self, train_x, train_y, likelihood):
+                    super(MultitaskGPModel, self).__init__(train_x, train_y, likelihood)
+                    self.mean_module = gpytorch.means.MultitaskMean(
+                        gpytorch.means.ConstantMean(), num_tasks=train_y.shape[1]
+                    )
+                    self.covar_module = gpytorch.kernels.MultitaskKernel(
+                        kernel, num_tasks=train_y.shape[1], rank=1
+                    )
+
+                def forward(self, x):
+                    mean_x = self.mean_module(x)
+                    covar_x = self.covar_module(x)
+                    return gpytorch.distributions.MultitaskMultivariateNormal(mean_x, covar_x)
+
+            # initialize likelihood and model
+            self.likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=train_y.shape[1])
+            self.model = MultitaskGPModel(train_x, train_y, self.likelihood)
+        else:
+            # We will use the simplest form of GP model, exact inference
+            class ExactGPModel(gpytorch.models.ExactGP):
+                def __init__(self, train_x, train_y, likelihood):
+                    super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
+                    self.mean_module = gpytorch.means.ConstantMean()
+                    self.covar_module = gpytorch.kernels.ScaleKernel(kernel)
+
+                def forward(self, x):
+                    mean_x = self.mean_module(x)
+                    covar_x = self.covar_module(x)
+                    return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+            # initialize likelihood and model
+            self.likelihood = gpytorch.likelihoods.GaussianLikelihood()
+            self.model = ExactGPModel(train_x, train_y, self.likelihood)
+
+    def fit(self, train_x, train_y):
+        # if self.validation is not None:
+        #     if type(train_x)!=np.ndarray: train_x = train_x.detach().numpy()
+        #     if type(train_y)!=np.ndarray: train_y = train_y.detach().numpy()
+        #     train_x, valid_x, train_y, valid_y = train_test_split(train_x, train_y, test_size=self.validation, random_state=42)
+        #     valid_x = torch.from_numpy(valid_x)
+
+        if type(train_x)==np.ndarray: train_x = torch.from_numpy(train_x.astype(float32))
+        if type(train_y)==np.ndarray: train_y = torch.from_numpy(train_y.astype(float32))
+        print(train_x.shape, train_y.shape)
+
+        # Check kernel
+        if self.kernel is None:
+            print('Setting kernel to Matern32.')
+            self.kernel = gpytorch.kernels.MaternKernel(nu=1.5)
+
+        # create simple GP model
+        if len(self.train_loss)==0:
+            self.prepare_model(train_x, train_y, kernel=self.kernel)
+
+        # Find optimal model hyperparameters
+        self.model.train()
+        self.likelihood.train()
+
+
+        if self.optimizer is None: 
+            print('Using the adam optimizer.')
+            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+
+        # "Loss" for GPs - the marginal log likelihood
+        if self.loss_fn in [None, 'marginal_log_likelihood', 'mll']:
+            mll = gpytorch.mlls.ExactMarginalLogLikelihood(self.likelihood, self.model)
+        else: 
+            mll = self.loss_fn
+
+        # optimize
+        for i in range(len(self.train_loss),self.max_iter):
+            # Zero gradients from previous iteration
+            self.optimizer.zero_grad()
+            # Output from model
+            output = self.model(train_x)
+            #print(type(output))
+            #print(output)
+            # Calc loss and backprop gradients
+            #print(output, train_y.shape)
+            loss = -mll(output, train_y)
+            loss.backward()
+            self.train_loss.append(loss.item())
+
+            # if self.validation:
+            #     self.model.eval()
+            #     self.likelihood.eval()
+
+            #     valid_out = self.likelihood(self.model(valid_x))
+            #     valid_ls  = -mll(valid_out, valid_y)
+            #     self.valid_loss.append(valid_ls.item())
+            #     print('Iter %d/%d - Train Loss: %.3f   Valid Loss: %.3f   ' % (
+            #         i + 1, self.max_iter, self.train_loss[-1], self.valid_loss[-1]
+            #     ))
+            #     self.model.train()
+            #     self.likelihood.train()
+            # else:
+            print('Iter %d/%d - Loss: %.3f   ' % (
+                i + 1, self.max_iter, self.train_loss[-1]
+            ))
+            self.optimizer.step()
+
+    def predict(self, X_test, return_ci=True):
+        if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
+
+        # Get into evaluation (predictive posterior) mode
+        model, likelihood = self.model, self.likelihood
+        model.eval()
+        likelihood.eval()
+
+
+        # Test points are regularly spaced along [0,1]
+        # Make predictions by feeding model through likelihood
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            observed_pred = likelihood(model(X_test))
+
+        if return_ci:
+            lower, upper = observed_pred.confidence_region()
+            return observed_pred.detach().numpy(), lower.detach().numpy(), upper.detach().numpy()
+
+        return observed_pred.detach().numpy()
+
+
+    def score(self, X_test, y_test):
+        if type(X_test)==np.ndarray: X_test = torch.from_numpy(X_test)
+        if type(y_test)==torch.Tensor: y_test = y_test.detach().numpy()
+
+        y_pred = self.predict(X_test, return_ci=False)
         scr = r2_score(y_test, y_pred)
         return scr
